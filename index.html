@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ختمة رمضان - الجدول الميسر</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f0fdf4;
+        }
+        .font-amiri {
+            font-family: 'Amiri', serif;
+        }
+        .prayer-checkbox:checked + div {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        .prayer-checkbox:checked + div .page-range {
+            color: #d1fae5;
+        }
+        .card-transition {
+            transition: all 0.3s ease;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #10b981; 
+            border-radius: 4px;
+        }
+        
+        /* Checkbox animation for the day header */
+        .day-check-btn {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .day-check-btn:hover {
+            transform: scale(1.1);
+        }
+        .day-check-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen pb-10">
+
+    <!-- Header Section -->
+    <header class="bg-emerald-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-4">
+            <div class="flex justify-between items-center mb-2">
+                <div>
+                    <h1 class="text-xl font-bold font-amiri">ختمة رمضان المبارك</h1>
+                    <p class="text-xs text-emerald-100 opacity-90">604 صفحة في 29 يومًا</p>
+                </div>
+                <div class="text-left">
+                    <span id="progress-percentage" class="text-2xl font-bold">0%</span>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full bg-emerald-900 rounded-full h-3 overflow-hidden">
+                <div id="progress-bar" class="bg-yellow-400 h-3 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between text-xs mt-1 text-emerald-100">
+                <span id="pages-completed">0 صفحة</span>
+                <span>الهدف: 604</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-md mx-auto px-4 py-6 space-y-4" id="days-container">
+        <!-- Javascript will populate days here -->
+    </main>
+
+    <!-- Bulk Actions Footer -->
+    <div class="max-w-md mx-auto px-4 mt-8 mb-12 flex justify-center gap-4">
+         <button onclick="confirmReset()" class="text-red-500 text-sm hover:text-red-700 transition flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            تصفير العداد
+        </button>
+    </div>
+
+    <script>
+        // Configuration
+        const TOTAL_PAGES = 604;
+        const TOTAL_DAYS = 29;
+        const PRAYERS = [
+            { id: 'fajr', name: 'الفجر', pages: 5 },
+            { id: 'dhuhr', name: 'الظهر', pages: 4 },
+            { id: 'asr', name: 'العصر', pages: 4 },
+            { id: 'maghrib', name: 'المغرب', pages: 4 },
+            { id: 'isha', name: 'العشاء', pages: 4 }
+        ];
+
+        // State
+        let currentPageTracker = 1;
+        let userProgress = JSON.parse(localStorage.getItem('ramadanKhatmaProgress')) || {};
+
+        // DOM Elements
+        const container = document.getElementById('days-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const pagesCompletedEl = document.getElementById('pages-completed');
+
+        function init() {
+            renderSchedule();
+            updateStats();
+        }
+
+        function getPrayersForDay(day) {
+            if (day === 29) {
+                return [
+                    { id: 'fajr', name: 'الفجر', pages: 5 },
+                    { id: 'dhuhr', name: 'الظهر', pages: 4 },
+                    { id: 'asr', name: 'العصر', pages: 4 },
+                    { id: 'maghrib', name: 'المغرب (الختام)', pages: 3 }
+                ];
+            }
+            return PRAYERS;
+        }
+
+        function renderSchedule() {
+            container.innerHTML = '';
+            currentPageTracker = 1; // Reset counter for rendering logic
+
+            for (let day = 1; day <= TOTAL_DAYS; day++) {
+                const dayCard = document.createElement('div');
+                dayCard.className = 'bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden card-transition hover:shadow-md';
+                
+                // Header of the Day Card
+                const isDayComplete = checkDayCompletion(day);
+                const headerClass = isDayComplete ? 'bg-emerald-50 border-b border-emerald-100' : 'bg-white border-b border-gray-50';
+                
+                // Day Check Button Style
+                const checkBtnClass = isDayComplete 
+                    ? 'bg-emerald-500 text-white border-emerald-500' 
+                    : 'bg-white text-gray-300 border-gray-300 hover:border-emerald-300';
+
+                let prayersHtml = '';
+                
+                // Prayer Loop
+                let dayPagesStart = currentPageTracker;
+                const currentDayPrayers = getPrayersForDay(day);
+
+                currentDayPrayers.forEach(prayer => {
+                    const startPage = currentPageTracker;
+                    const endPage = currentPageTracker + prayer.pages - 1;
+                    currentPageTracker += prayer.pages;
+
+                    const storageKey = `day-${day}-${prayer.id}`;
+                    const isChecked = userProgress[storageKey] ? 'checked' : '';
+
+                    prayersHtml += `
+                        <label class="relative cursor-pointer group select-none">
+                            <input type="checkbox" 
+                                class="prayer-checkbox sr-only" 
+                                id="${storageKey}" 
+                                onchange="togglePrayer('${storageKey}')" 
+                                ${isChecked}>
+                            <div class="p-3 rounded-lg border border-gray-200 bg-gray-50 transition-all duration-200 hover:border-emerald-300 flex justify-between items-center">
+                                <div>
+                                    <span class="font-bold block text-sm">${prayer.name}</span>
+                                    <span class="text-xs text-gray-500 page-range font-amiri">صفحة ${startPage} - ${endPage}</span>
+                                </div>
+                                <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center bg-white check-circle">
+                                    <svg class="w-4 h-4 text-white opacity-0 transition-opacity duration-200 check-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                </div>
+                            </div>
+                            <style>
+                                .prayer-checkbox:checked + div .check-circle { background-color: white; border-color: white; }
+                                .prayer-checkbox:checked + div .check-icon { opacity: 1; color: #10b981; }
+                            </style>
+                        </label>
+                    `;
+                });
+
+                // Check button SVG
+                const checkSvg = isDayComplete 
+                    ? `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`
+                    : `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>`; // Plus icon for incomplete
+
+                const btnTitle = isDayComplete ? "اضغط لإلغاء اليوم" : "اضغط لإكمال اليوم كاملاً";
+
+                dayCard.innerHTML = `
+                    <details class="group" ${isToday(day) ? 'open' : ''}>
+                        <summary class="flex justify-between items-center p-4 cursor-pointer list-none select-none ${headerClass} hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <span class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-sm font-amiri">${day}</span>
+                                <div>
+                                    <h3 class="font-bold text-gray-800 text-sm sm:text-base">رمضان</h3>
+                                    <p class="text-xs text-gray-500">صـ ${dayPagesStart} إلى ${currentPageTracker - 1}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-3">
+                                <!-- Quick Complete Button -->
+                                <button onclick="toggleWholeDay(${day}, event)" 
+                                        title="${btnTitle}"
+                                        class="day-check-btn w-8 h-8 rounded-full border-2 flex items-center justify-center outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-1 ${checkBtnClass}">
+                                    ${checkSvg}
+                                </button>
+                                
+                                <!-- Accordion Arrow -->
+                                <span class="transform transition-transform duration-200 group-open:rotate-180 text-gray-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </span>
+                            </div>
+                        </summary>
+                        <div class="p-4 grid grid-cols-1 gap-3 bg-white animate-fade-in border-t border-gray-100">
+                            ${prayersHtml}
+                        </div>
+                    </details>
+                `;
+
+                container.appendChild(dayCard);
+            }
+        }
+
+        // --- NEW FUNCTION: Toggle Whole Day ---
+        function toggleWholeDay(day, event) {
+            // Stop the accordion from toggling
+            event.preventDefault(); 
+            // Only stop propagation if we don't want the accordion to open/close. 
+            // Usually, clicking a button inside summary bubbles up. preventDefault is safer for <details> behavior?
+            // Actually, preventDefault on a button inside summary usually stops details toggle, 
+            // but let's be safe.
+            // Note: In some browsers, clicking inside summary toggles it. 
+            // We'll wrap logic to ensure we just change data.
+            
+            const isComplete = checkDayCompletion(day);
+            const prayers = getPrayersForDay(day);
+            
+            // If complete -> uncheck all. If incomplete -> check all.
+            const newState = !isComplete;
+
+            prayers.forEach(p => {
+                const key = `day-${day}-${p.id}`;
+                if (newState) {
+                    userProgress[key] = true;
+                } else {
+                    delete userProgress[key];
+                }
+            });
+
+            saveAndRender();
+            
+            if (newState && day === TOTAL_DAYS) {
+                // If they just completed the last day via the quick button
+                triggerConfetti();
+            }
+        }
+
+        function togglePrayer(key) {
+            const checkbox = document.getElementById(key);
+            
+            if (checkbox.checked) {
+                userProgress[key] = true;
+            } else {
+                delete userProgress[key];
+            }
+            
+            saveAndRender();
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('ramadanKhatmaProgress', JSON.stringify(userProgress));
+            
+            // Get current scroll position to restore it roughly or keep user context
+            // Since we re-render everything, we might lose open states if we aren't careful.
+            // Simpler approach: update stats, and update the specific day's visual state manually?
+            // Re-rendering is robust but jarring.
+            // Let's re-render but try to preserve open states? 
+            // Actually, for this simple app, re-rendering is fast enough. 
+            // We just need to make sure we don't close the accordion user is looking at.
+            
+            // Optimization: Just reload page content. 
+            // To keep accordions open: read the 'open' attributes before wiping?
+            // Let's simplify: Check which details are open
+            const openDetailsIndices = [];
+            document.querySelectorAll('details').forEach((el, index) => {
+                if(el.hasAttribute('open')) openDetailsIndices.push(index);
+            });
+
+            renderSchedule();
+            updateStats();
+
+            // Restore open states
+            const detailsElements = document.querySelectorAll('details');
+            openDetailsIndices.forEach(index => {
+                if(detailsElements[index]) detailsElements[index].setAttribute('open', '');
+            });
+        }
+
+        function checkDayCompletion(day) {
+            const currentDayPrayers = getPrayersForDay(day);
+            return currentDayPrayers.every(p => userProgress[`day-${day}-${p.id}`]);
+        }
+
+        function updateStats() {
+            let totalPagesRead = 0;
+
+            for (let d = 1; d <= TOTAL_DAYS; d++) {
+                const dayPrayers = getPrayersForDay(d);
+                dayPrayers.forEach(p => {
+                    const key = `day-${d}-${p.id}`;
+                    if (userProgress[key]) {
+                        totalPagesRead += p.pages;
+                    }
+                });
+            }
+
+            const percentage = Math.min(100, Math.round((totalPagesRead / TOTAL_PAGES) * 100));
+            
+            progressBar.style.width = `${percentage}%`;
+            progressPercentage.textContent = `${percentage}%`;
+            pagesCompletedEl.textContent = `${totalPagesRead} صفحة مقروءة`;
+
+            const header = document.querySelector('header');
+            if (percentage === 100) {
+                header.classList.remove('bg-emerald-700');
+                header.classList.add('bg-yellow-600');
+            } else {
+                header.classList.add('bg-emerald-700');
+                header.classList.remove('bg-yellow-600');
+            }
+        }
+
+        function isToday(day) {
+            // Opens the first incomplete day
+            return !checkDayCompletion(day) && (day === 1 || checkDayCompletion(day - 1));
+        }
+
+        function confirmReset() {
+            if(confirm('هل أنت متأكد من رغبتك في حذف جميع البيانات والبدء من جديد؟')) {
+                localStorage.removeItem('ramadanKhatmaProgress');
+                userProgress = {};
+                saveAndRender();
+                window.scrollTo(0, 0);
+            }
+        }
+
+        function triggerConfetti() {
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                var particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        function randomInRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        // Run
+        init();
+
+    </script>
+</body>
+</html>
